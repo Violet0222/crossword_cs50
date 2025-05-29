@@ -210,17 +210,17 @@ class CrosswordCreator():
         for word in self.domains[var]:
             conflicts = 0
             
-        for neighbor in self.crossword.neighbors(var):
-            if neighbor in assignment:
-                continue
+            for neighbor in self.crossword.neighbors(var):
+                if neighbor in assignment:
+                    continue
+                
+                i, j = self.crossword.overlaps[var, neighbor]
+                
+                for other_word in self.domains[neighbor]:
+                    if word[i] != other_word[j]:
+                        conflicts += 1
             
-            i, j = self.crossword.overlaps[var, neighbor]
             
-            for other_word in self.domains[neighbor]:
-                if word[i] != other_word[j]:
-                    conflicts += 1
-        
-        
             word_scores.append((word, conflicts))
         
         word_scores.sort(key=lambda pair: pair[1])
@@ -238,27 +238,30 @@ class CrosswordCreator():
         degree. If there is a tie, any of the tied variables are acceptable
         return values.
         """
-        unassigned = [v for v in self.crossword.variables if v not in assignment]
+        unassigned_vars = []
+        for var in self.crossword.variables:
+            if var not in assignment:
+                unassigned_vars.append(var)
+                
+        best_var = unassigned_vars[0]
         
-        smallest_domain_var = None
-        smallest_domain_size = float('inf')
-        max_degree = -1
+        for var in unassigned_vars:
+            current_domain_size = len(self.domains[var])
+            best_domain_size = len(self.domains[best_var])
+            
+            current_neighbors = len(self.crossword.neighbors(var))
+            best_neighbors = len(self.crossword.neighbors(best_var))
         
-        for var in unassigned:
-            domain_size = len(self.domains[var])
-            degree = len(self.crossword.neighbors(var))
+            
+            if current_domain_size < best_domain_size:
+                best_var = var
+            elif current_domain_size == best_domain_size and current_neighbors > best_neighbors:
+                best_var = var
+        
+        return best_var
 
        
-            if domain_size < smallest_domain_size:
-                smallest_domain_var = var
-                smallest_domain_size = domain_size
-                max_degree = degree
-        
-            elif domain_size == smallest_domain_size and degree > max_degree:
-                smallest_domain_var = var
-                max_degree = degree
-
-        return smallest_domain_var
+            
 
     def backtrack(self, assignment):
         """
@@ -276,22 +279,29 @@ class CrosswordCreator():
         var = self.select_unassigned_variable(assignment)
 
     
-        for word in self.order_domain_values(var, assignment):
-        
-            assignment[var] = word
+        for value in self.order_domain_values(var, assignment):
+            new_assignment = assignment.copy()
+            new_assignment[var] = value
 
         
             if self.consistent(assignment):
+                saved_domains = {}
+                for v in self.domains:
+                    saved_domains[v] = self.domains[v].copy()
+                self.domains[var] = {value}
                 
-                result = self.backtrack(assignment)
-                if result is not None:
-                    return result
-
-        
-            del assignment[var]
-
-        
+                arcs = []
+                for neighbor in self.crossword.neighbors(var):
+                    arcs.append((neighbor, var))
+                if self.ac3(arcs):
+                    result = self.backtrack(new_assignment)
+                    if result is not None:
+                        return result
+                
+                self.domains = saved_domains
         return None
+    
+
 
 
 def main():
