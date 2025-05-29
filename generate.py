@@ -100,10 +100,11 @@ class CrosswordCreator():
          constraints; in this case, the length of the word.)
         """
         for variable in self.domains:
-            self.domains[variable] = {
-                word for word in self.domains[variable]
-                if len(word) == variable.length
-                }
+            to_remove = set()
+            for word in self.domains[variable]:
+                if len(word) != variable.length:
+                    to_remove.add(word)
+            self.domains[variable] -= to_remove
 
     def revise(self, x, y):
         """
@@ -119,8 +120,11 @@ class CrosswordCreator():
         overlap = self.crossword.overlaps.get((x, y))
         if overlap is None:
             return False
+        
+        
         i, j = overlap
         to_remove = set()
+        
         for word_x in self.domains[x]:
             if not any(word_x[i] == word_y[j] for word_y in self.domains[y]):to_remove.add(word_x)
         if to_remove:
@@ -150,10 +154,12 @@ class CrosswordCreator():
         while queue:
             x, y = queue.pop(0)
             if self.revise(x, y):
-                if not self.domains[x]:
+                if len(self.domains[x]) == 0:
                     return False
-                for z in self.crossword.neighbors(x) - {y}:
-                    queue.append((z, x))
+                    
+                for z in self.crossword.neighbors(x):
+                    if z != y:
+                        queue.append((z, x))
         return True
 
     def assignment_complete(self, assignment):
@@ -174,18 +180,19 @@ class CrosswordCreator():
             
             if word in used_words:
                 return False
-        used_words.add(word)
-        
-        if len(word) != var.length:
-            return False
-        
-        for neighbor in self.crossword.neighbors(var):
-            if neighbor not in assignment:
-                continue
             
-            i, j = self.crossword.overlaps[var, neighbor]
-            if word[i] != assignment[neighbor][j]:
+            used_words.add(word)
+        
+            if len(word) != var.length:
                 return False
+        
+            for neighbor in self.crossword.neighbors(var):
+                if neighbor not in assignment:
+                    continue
+            
+                i, j = self.crossword.overlaps[var, neighbor]
+                if word[i] != assignment[neighbor][j]:
+                    return False
             
         return True
 
@@ -230,7 +237,27 @@ class CrosswordCreator():
         degree. If there is a tie, any of the tied variables are acceptable
         return values.
         """
-        raise NotImplementedError
+        unassigned = [v for v in self.crossword.variables if v not in assignment]
+        
+        smallest_domain_var = None
+        smallest_domain_size = float('inf')
+        max_degree = -1
+        
+        for var in unassigned:
+            domain_size = len(self.domains[var])
+            degree = len(self.crossword.neighbors(var))
+
+       
+            if domain_size < smallest_domain_size:
+                smallest_domain_var = var
+                smallest_domain_size = domain_size
+                max_degree = degree
+        
+            elif domain_size == smallest_domain_size and degree > max_degree:
+                smallest_domain_var = var
+                max_degree = degree
+
+        return smallest_domain_var
 
     def backtrack(self, assignment):
         """
@@ -241,7 +268,29 @@ class CrosswordCreator():
 
         If no assignment is possible, return None.
         """
-        raise NotImplementedError
+        if self.assignment_complete(assignment):
+            return assignment
+
+ 
+        var = self.select_unassigned_variable(assignment)
+
+    
+        for word in self.order_domain_values(var, assignment):
+        
+            assignment[var] = word
+
+        
+            if self.consistent(assignment):
+                
+                result = self.backtrack(assignment)
+                if result is not None:
+                    return result
+
+        
+            del assignment[var]
+
+        
+        return None
 
 
 def main():
