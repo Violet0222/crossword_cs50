@@ -100,11 +100,12 @@ class CrosswordCreator():
          constraints; in this case, the length of the word.)
         """
         for variable in self.domains:
-            to_remove = set()
+            to_remove = []
             for word in self.domains[variable]:
                 if len(word) != variable.length:
-                    to_remove.add(word)
-            self.domains[variable] -= to_remove
+                    to_remove.append(word)
+            for word in to_remove:  
+                self.domains[variable].remove(word)
 
     def revise(self, x, y):
         """
